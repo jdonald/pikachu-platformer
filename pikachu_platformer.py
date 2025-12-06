@@ -10,6 +10,8 @@ GRAVITY = 0.5
 JUMP_SPEED = -12
 PLAYER_SPEED = 5
 ENEMY_SPEED = 2
+SWORD_RANGE = 40  # How far the sword reaches
+SWORD_DURATION = 10  # How many frames the sword swing lasts
 
 # Colors
 SKY_BLUE = (135, 206, 235)
@@ -27,7 +29,10 @@ class GameState(Enum):
 game_state = GameState.PLAYING
 current_level = 1
 camera_x = 0
+score = 0  # Player score
 space_was_pressed = False  # Track spacebar state for jump detection
+j_was_pressed = False  # Track 'j' key state for sprite toggle
+z_was_pressed = False  # Track 'z' key state for sword swing
 
 class Player:
     def __init__(self, x, y):
@@ -39,6 +44,9 @@ class Player:
         self.vel_y = 0
         self.on_ground = False
         self.jumps_used = 0  # Track jumps for double-jump mechanic
+        self.facing_right = True  # Track which direction player is facing
+        self.is_swinging = False  # Is sword swing active
+        self.swing_timer = 0  # Frames remaining in sword swing
 
     def update(self):
         # Apply gravity
@@ -54,6 +62,12 @@ class Player:
             self.y = floor_y
             self.vel_y = 0
 
+        # Update sword swing timer
+        if self.swing_timer > 0:
+            self.swing_timer -= 1
+            if self.swing_timer == 0:
+                self.is_swinging = False
+
     def jump(self):
         # Allow jumping if on ground OR if haven't used both jumps (double-jump)
         if self.jumps_used < 2:
@@ -63,15 +77,31 @@ class Player:
 
     def move_left(self):
         self.vel_x = -PLAYER_SPEED
+        self.facing_right = False
 
     def move_right(self):
         self.vel_x = PLAYER_SPEED
+        self.facing_right = True
 
     def stop_horizontal(self):
         self.vel_x = 0
 
+    def swing_sword(self):
+        # Start a sword swing
+        self.is_swinging = True
+        self.swing_timer = SWORD_DURATION
+
     def get_rect(self):
         return Rect(self.x, self.y, self.width, self.height)
+
+    def get_sword_rect(self):
+        # Get the hitbox for the sword swing
+        if self.facing_right:
+            # Sword extends to the right
+            return Rect(self.x + self.width, self.y, SWORD_RANGE, self.height)
+        else:
+            # Sword extends to the left
+            return Rect(self.x - SWORD_RANGE, self.y, SWORD_RANGE, self.height)
 
 class Enemy:
     def __init__(self, x, y):
@@ -172,15 +202,21 @@ platforms, enemies, goal = generate_level(current_level)
 # Create sprite actors
 try:
     pikachu_sprite = Actor('pikachu')
-    # Scale the sprite to match the player dimensions (32x32)
+    jigglypuff_sprite = Actor('jigglypuff')
+    # Scale the sprites to match the player dimensions (32x32)
     pikachu_sprite._surf = pygame.transform.scale(pikachu_sprite._surf, (player.width, player.height))
     pikachu_sprite._update_pos()
+    jigglypuff_sprite._surf = pygame.transform.scale(jigglypuff_sprite._surf, (player.width, player.height))
+    jigglypuff_sprite._update_pos()
+
+    player_sprites = [pikachu_sprite, jigglypuff_sprite]
+    current_sprite_index = 0  # 0 = pikachu, 1 = jigglypuff
     use_sprites = True
 except:
     use_sprites = False  # Fall back to colored rectangles if sprite not found
 
 def update():
-    global game_state, current_level, camera_x, player, platforms, enemies, goal, use_sprites, space_was_pressed
+    global game_state, current_level, camera_x, player, platforms, enemies, goal, use_sprites, space_was_pressed, j_was_pressed, z_was_pressed, current_sprite_index, score
 
     if game_state == GameState.PLAYING:
         # Handle input
@@ -196,6 +232,54 @@ def update():
         if space_is_pressed and not space_was_pressed:
             player.jump()
         space_was_pressed = space_is_pressed
+
+        # Detect 'j' key press to toggle sprite
+        if use_sprites:
+            j_is_pressed = keyboard.j
+            if j_is_pressed and not j_was_pressed:
+                current_sprite_index = (current_sprite_index + 1) % 2
+            j_was_pressed = j_is_pressed
+
+        # Detect 'z' key press to swing sword
+        z_is_pressed = keyboard.z
+        if z_is_pressed and not z_was_pressed:
+            player.swing_sword()
+        z_was_pressed = z_is_pressed
+
+        # Level warping with number keys (1-9, 0 for level 10)
+        warp_level = None
+        if keyboard.k_1:
+            warp_level = 1
+        elif keyboard.k_2:
+            warp_level = 2
+        elif keyboard.k_3:
+            warp_level = 3
+        elif keyboard.k_4:
+            warp_level = 4
+        elif keyboard.k_5:
+            warp_level = 5
+        elif keyboard.k_6:
+            warp_level = 6
+        elif keyboard.k_7:
+            warp_level = 7
+        elif keyboard.k_8:
+            warp_level = 8
+        elif keyboard.k_9:
+            warp_level = 9
+        elif keyboard.k_0:
+            warp_level = 10
+
+        if warp_level is not None:
+            current_level = warp_level
+            score = 0  # Reset score when warping (restarting game)
+            # Reset player to start of level
+            player.x = 100
+            player.y = HEIGHT - 100 - 32
+            player.vel_x = 0
+            player.vel_y = 0
+            player.on_ground = True
+            player.jumps_used = 0
+            platforms, enemies, goal = generate_level(current_level)
 
         # Update player
         old_y = player.y
@@ -239,6 +323,14 @@ def update():
         for enemy in enemies:
             enemy.update(platforms)
 
+        # Sword collision detection
+        if player.is_swinging:
+            sword_rect = player.get_sword_rect()
+            for enemy in enemies:
+                if enemy.alive and sword_rect.colliderect(enemy.get_rect()):
+                    enemy.alive = False
+                    score += 20  # Award points for sword kill
+
         # Enemy collision detection
         for enemy in enemies:
             if not enemy.alive:
@@ -250,6 +342,7 @@ def update():
                 if player.vel_y > 0 and player.y + player.height - 10 < enemy.y:
                     enemy.alive = False
                     player.vel_y = JUMP_SPEED / 2  # Small bounce
+                    score += 20  # Award points for stomping enemy
                 else:
                     # Player hit from side - restart level
                     game_state = GameState.RESTARTING
@@ -310,12 +403,13 @@ def draw():
         GREEN
     )
 
-    # Draw player (Pikachu)
+    # Draw player
     player_screen_x = player.x - camera_x
     if use_sprites:
-        # Update sprite position and draw
-        pikachu_sprite.topleft = (player_screen_x, player.y)
-        pikachu_sprite.draw()
+        # Update current sprite position and draw
+        current_sprite = player_sprites[current_sprite_index]
+        current_sprite.topleft = (player_screen_x, player.y)
+        current_sprite.draw()
     else:
         # Fall back to colored rectangle
         screen.draw.filled_rect(
@@ -328,6 +422,34 @@ def draw():
             (255, 0, 0)  # Red border
         )
 
+    # Draw sword swing if active
+    if player.is_swinging:
+        # Choose color based on current sprite
+        if use_sprites and current_sprite_index == 1:
+            sword_color = PINK  # Jigglypuff sword
+        else:
+            sword_color = YELLOW  # Pikachu sword (default)
+
+        # Calculate sword line positions
+        player_center_y = player.y + player.height // 2
+        if player.facing_right:
+            # Sword extends to the right, slanted upward
+            start_x = player.x + player.width - camera_x
+            start_y = player_center_y + 5
+            end_x = start_x + SWORD_RANGE
+            end_y = player_center_y - 10
+        else:
+            # Sword extends to the left, slanted upward
+            start_x = player.x - camera_x
+            start_y = player_center_y + 5
+            end_x = start_x - SWORD_RANGE
+            end_y = player_center_y - 10
+
+        # Draw the sword as a thick slanted line
+        screen.draw.line((start_x, start_y), (end_x, end_y), sword_color)
+        screen.draw.line((start_x, start_y + 1), (end_x, end_y + 1), sword_color)
+        screen.draw.line((start_x, start_y + 2), (end_x, end_y + 2), sword_color)
+
     # Draw enemies (Eevee - pink squares for now)
     for enemy in enemies:
         if enemy.alive:
@@ -338,7 +460,7 @@ def draw():
 
     # Draw UI
     screen.draw.text(f"Level {current_level}/10", (10, 10), color="white", fontsize=30)
-    screen.draw.text(f"Pikachu: ({int(player.x)}, {int(player.y)})", (10, 40), color="white", fontsize=20)
+    screen.draw.text(f"Score: {score}", (10, 45), color="white", fontsize=30)
 
     if game_state == GameState.LEVEL_COMPLETE:
         screen.draw.text("LEVEL COMPLETE!", (WIDTH//2 - 150, HEIGHT//2 - 50),
