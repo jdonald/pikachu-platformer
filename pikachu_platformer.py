@@ -1,4 +1,5 @@
 import pgzrun
+import pygame
 import random
 from enum import Enum
 
@@ -26,6 +27,7 @@ class GameState(Enum):
 game_state = GameState.PLAYING
 current_level = 1
 camera_x = 0
+space_was_pressed = False  # Track spacebar state for jump detection
 
 class Player:
     def __init__(self, x, y):
@@ -36,6 +38,7 @@ class Player:
         self.vel_x = 0
         self.vel_y = 0
         self.on_ground = False
+        self.jumps_used = 0  # Track jumps for double-jump mechanic
 
     def update(self):
         # Apply gravity
@@ -52,9 +55,11 @@ class Player:
             self.vel_y = 0
 
     def jump(self):
-        if self.on_ground:
+        # Allow jumping if on ground OR if haven't used both jumps (double-jump)
+        if self.jumps_used < 2:
             self.vel_y = JUMP_SPEED
             self.on_ground = False
+            self.jumps_used += 1
 
     def move_left(self):
         self.vel_x = -PLAYER_SPEED
@@ -167,12 +172,15 @@ platforms, enemies, goal = generate_level(current_level)
 # Create sprite actors
 try:
     pikachu_sprite = Actor('pikachu')
+    # Scale the sprite to match the player dimensions (32x32)
+    pikachu_sprite._surf = pygame.transform.scale(pikachu_sprite._surf, (player.width, player.height))
+    pikachu_sprite._update_pos()
     use_sprites = True
 except:
     use_sprites = False  # Fall back to colored rectangles if sprite not found
 
 def update():
-    global game_state, current_level, camera_x, player, platforms, enemies, goal, use_sprites
+    global game_state, current_level, camera_x, player, platforms, enemies, goal, use_sprites, space_was_pressed
 
     if game_state == GameState.PLAYING:
         # Handle input
@@ -183,8 +191,11 @@ def update():
         elif keyboard.right or keyboard.d:
             player.move_right()
 
-        if keyboard.space:
+        # Detect spacebar press (not hold) for jumping
+        space_is_pressed = keyboard.space
+        if space_is_pressed and not space_was_pressed:
             player.jump()
+        space_was_pressed = space_is_pressed
 
         # Update player
         old_y = player.y
@@ -210,6 +221,7 @@ def update():
                 player.y = platform.top - player.height
                 player.vel_y = 0
                 player.on_ground = True
+                player.jumps_used = 0  # Reset jumps when landing
             elif player_rect.colliderect(platform_rect):
                 # Other collisions (bottom and sides)
                 if old_y >= platform.bottom and player.vel_y < 0:
@@ -264,6 +276,7 @@ def update():
             player.vel_x = 0
             player.vel_y = 0
             player.on_ground = True
+            player.jumps_used = 0
             platforms, enemies, goal = generate_level(current_level)
             game_state = GameState.PLAYING
 
@@ -276,6 +289,7 @@ def update():
             player.vel_x = 0
             player.vel_y = 0
             player.on_ground = True
+            player.jumps_used = 0
             platforms, enemies, goal = generate_level(current_level)
             game_state = GameState.PLAYING
 
