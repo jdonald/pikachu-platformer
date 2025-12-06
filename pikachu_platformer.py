@@ -164,8 +164,15 @@ player = Player(100, HEIGHT - 100 - 32)
 player.on_ground = True  # Start on ground so player can jump immediately
 platforms, enemies, goal = generate_level(current_level)
 
+# Create sprite actors
+try:
+    pikachu_sprite = Actor('pikachu')
+    use_sprites = True
+except:
+    use_sprites = False  # Fall back to colored rectangles if sprite not found
+
 def update():
-    global game_state, current_level, camera_x, player, platforms, enemies, goal
+    global game_state, current_level, camera_x, player, platforms, enemies, goal, use_sprites
 
     if game_state == GameState.PLAYING:
         # Handle input
@@ -289,17 +296,23 @@ def draw():
         GREEN
     )
 
-    # Draw player (Pikachu - yellow square for now)
+    # Draw player (Pikachu)
     player_screen_x = player.x - camera_x
-    screen.draw.filled_rect(
-        Rect(player_screen_x, player.y, player.width, player.height),
-        YELLOW
-    )
-    # Draw border around player to make it more visible
-    screen.draw.rect(
-        Rect(player_screen_x, player.y, player.width, player.height),
-        (255, 0, 0)  # Red border
-    )
+    if use_sprites:
+        # Update sprite position and draw
+        pikachu_sprite.topleft = (player_screen_x, player.y)
+        pikachu_sprite.draw()
+    else:
+        # Fall back to colored rectangle
+        screen.draw.filled_rect(
+            Rect(player_screen_x, player.y, player.width, player.height),
+            YELLOW
+        )
+        # Draw border around player to make it more visible
+        screen.draw.rect(
+            Rect(player_screen_x, player.y, player.width, player.height),
+            (255, 0, 0)  # Red border
+        )
 
     # Draw enemies (Eevee - pink squares for now)
     for enemy in enemies:
