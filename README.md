@@ -10,8 +10,39 @@ The character is displayed as a Pikachu, but acts more like Mario. There are 10 
 
 ## Requirements
 
-TODO: text needed here to recommend for Raspberry Pi 4+ with Raspberry Pi OS, but this should run on other targets that support Python3 (macOS, Linux, Windows).
+This game is designed for Raspberry Pi 4+ with Raspberry Pi OS, but will run on any system that supports Python 3.7+ including macOS, Linux, and Windows.
+
+- Python 3.7 or higher
+- pygame-zero 1.2.1+
+- pygame 2.1.0+
+
+## Setup
+
+1. Clone this repository:
+```bash
+git clone https://github.com/yourusername/pikachu-platformer.git
+cd pikachu-platformer
+```
+
+2. Create a virtual environment (recommended):
+```bash
+python3 -m venv --system-site-packages my-venv
+source my-venv/bin/activate  # On Windows: my-venv\Scripts\activate
+```
+
+3. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
 
 ## Running
 
-Include instructions here for setting up Python virtualenv with pygame-zero and any other pip dependencies.
+To run the game:
+```bash
+python3 pikachu_platformer.py
+```
+
+Or using pgzrun directly:
+```bash
+pgzrun pikachu_platformer.py
+```
