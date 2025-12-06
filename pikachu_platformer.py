@@ -45,11 +45,11 @@ class Player:
         self.x += self.vel_x
         self.y += self.vel_y
 
-        # Prevent falling through floor
-        if self.y > HEIGHT - 100 - self.height:
-            self.y = HEIGHT - 100 - self.height
+        # Safety floor to prevent falling infinitely (collision detection will set on_ground)
+        floor_y = HEIGHT - 100 - self.height
+        if self.y > floor_y:
+            self.y = floor_y
             self.vel_y = 0
-            self.on_ground = True
 
     def jump(self):
         if self.on_ground:
@@ -161,6 +161,7 @@ def generate_level(level_num):
 
 # Initialize level
 player = Player(100, HEIGHT - 100 - 32)
+player.on_ground = True  # Start on ground so player can jump immediately
 platforms, enemies, goal = generate_level(current_level)
 
 def update():
@@ -182,6 +183,12 @@ def update():
         old_y = player.y
         player.update()
 
+        # Keep player on screen horizontally
+        if player.x < 0:
+            player.x = 0
+        if player.x > 4900:  # Near end of level
+            player.x = 4900
+
         # Platform collision detection
         player_rect = player.get_rect()
         player.on_ground = False
@@ -189,14 +196,16 @@ def update():
         for platform in platforms:
             platform_rect = platform.get_rect()
 
-            if player_rect.colliderect(platform_rect):
-                # Vertical collision
-                if old_y + player.height <= platform.top and player.vel_y > 0:
-                    # Landing on top of platform
-                    player.y = platform.top - player.height
-                    player.vel_y = 0
-                    player.on_ground = True
-                elif old_y >= platform.bottom and player.vel_y < 0:
+            # Check if player is standing on top of platform (even if just touching)
+            if (player_rect.left < platform.right and player_rect.right > platform.left and
+                abs(player.y + player.height - platform.top) <= 2 and player.vel_y >= 0):
+                # Landing on top of platform
+                player.y = platform.top - player.height
+                player.vel_y = 0
+                player.on_ground = True
+            elif player_rect.colliderect(platform_rect):
+                # Other collisions (bottom and sides)
+                if old_y >= platform.bottom and player.vel_y < 0:
                     # Hitting bottom of platform
                     player.y = platform.bottom
                     player.vel_y = 0
@@ -247,6 +256,7 @@ def update():
             player.y = HEIGHT - 100 - 32
             player.vel_x = 0
             player.vel_y = 0
+            player.on_ground = True
             platforms, enemies, goal = generate_level(current_level)
             game_state = GameState.PLAYING
 
@@ -258,6 +268,7 @@ def update():
             player.y = HEIGHT - 100 - 32
             player.vel_x = 0
             player.vel_y = 0
+            player.on_ground = True
             platforms, enemies, goal = generate_level(current_level)
             game_state = GameState.PLAYING
 
@@ -279,9 +290,15 @@ def draw():
     )
 
     # Draw player (Pikachu - yellow square for now)
+    player_screen_x = player.x - camera_x
     screen.draw.filled_rect(
-        Rect(player.x - camera_x, player.y, player.width, player.height),
+        Rect(player_screen_x, player.y, player.width, player.height),
         YELLOW
+    )
+    # Draw border around player to make it more visible
+    screen.draw.rect(
+        Rect(player_screen_x, player.y, player.width, player.height),
+        (255, 0, 0)  # Red border
     )
 
     # Draw enemies (Eevee - pink squares for now)
@@ -294,6 +311,7 @@ def draw():
 
     # Draw UI
     screen.draw.text(f"Level {current_level}/10", (10, 10), color="white", fontsize=30)
+    screen.draw.text(f"Pikachu: ({int(player.x)}, {int(player.y)})", (10, 40), color="white", fontsize=20)
 
     if game_state == GameState.LEVEL_COMPLETE:
         screen.draw.text("LEVEL COMPLETE!", (WIDTH//2 - 150, HEIGHT//2 - 50),
