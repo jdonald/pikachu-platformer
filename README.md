@@ -2,6 +2,8 @@
 
 Sample Vibe-coded platformer on pygame-zero, runs on Raspberry Pi 4
 
+![sample screenshot](screenshot.png)
+
 ## Gameplay
 
 This is a simple Mario-like game in pygame-zero. The character motion can be controlled via WASD (or basically just A and D for left and right), or arrow keys for the same. Spacebar to jump.
